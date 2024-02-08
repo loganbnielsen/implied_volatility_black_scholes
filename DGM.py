@@ -68,7 +68,7 @@ class LSTMLayer(tf.keras.layers.Layer):
     
     
     # main function to be called 
-    def call(self, S, X):
+    def call(self, SX):
         '''Compute output of a LSTMLayer for a given inputs S,X .    
 
         Args:            
@@ -77,6 +77,7 @@ class LSTMLayer(tf.keras.layers.Layer):
         
         Returns: customized Keras layer object used as intermediate layers in DGM
         '''   
+        S, X = SX
         
         # compute components of LSTM layer output (note H uses a separate activation function)
         Z = self.trans1(tf.add(tf.add(tf.matmul(X,self.Uz), tf.matmul(S,self.Wz)), self.bz))
@@ -143,6 +144,18 @@ class DenseLayer(tf.keras.layers.Layer):
         
         return S
 
+class TrivialNet(tf.keras.Model):
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+
+        self.l1 = DenseLayer(input_dim+1, input_dim+1, transformation="tanh")
+        self.l2 = DenseLayer(output_dim, input_dim+1)
+
+    def call(self, tx):
+        t,x = tx
+        X = tf.concat([t,x],1)
+        return self.l2(self.l1(X))
+
     
 class DGMNet(tf.keras.Model):
     
@@ -177,7 +190,7 @@ class DGMNet(tf.keras.Model):
     
     
     # main function to be called  
-    def call(self,t,x):
+    def call(self,tx):
         '''            
         Args:
             t: sampled time inputs 
@@ -185,18 +198,18 @@ class DGMNet(tf.keras.Model):
 
         Run the DGM model and obtain fitted function value at the inputs (t,x)                
         '''  
-        
+        t,x = tx 
         # define input vector as time-space pairs
         X = tf.concat([t,x],1)
         
         # call initial layer
-        S = self.initial_layer.call(X)
+        S = self.initial_layer(X)
         
         # call intermediate LSTM layers
         for i in range(self.n_layers):
-            S = self.LSTMLayerList[i].call(S,X)
+            S = self.LSTMLayerList[i]((S,X))
         
         # call final LSTM layers
-        result = self.final_layer.call(S)
+        result = self.final_layer(S)
         
         return result
