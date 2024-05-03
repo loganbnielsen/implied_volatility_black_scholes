@@ -82,19 +82,19 @@ def sampler(n_interior_obs, n_terminal_obs):
 
     ## Don't sample the terminal condition
 
-    # if DEBUG:
-    #     print("sample terminal")
-    # terminal_shape = [n_terminal_obs, 1]
-    # terminal_times = tf.fill(dims=terminal_shape, value=MATURITY_TIME)
-    # moneyness_terminal = 3*SIGMA*np.sqrt(terminal_times) * tf.random.uniform(shape=terminal_shape, minval=-1, maxval=1)
+    if DEBUG:
+        print("sample terminal")
+    terminal_shape = [n_terminal_obs, 1]
+    terminal_times = tf.fill(dims=terminal_shape, value=START_TIME)
+    moneyness_terminal = 3*SIGMA*np.sqrt(terminal_times) * tf.random.uniform(shape=terminal_shape, minval=-1, maxval=1)
 
-    # time = tf.concat([interior_times, terminal_times],axis=0)
-    # moneyness = tf.concat([moneyness_interior, moneyness_terminal],axis=0)
+    time = tf.concat([interior_times, terminal_times],axis=0)
+    moneyness = tf.concat([moneyness_interior, moneyness_terminal],axis=0)
 
-    return interior_times, moneyness_interior
+    return (time, moneyness), (terminal_times, moneyness_terminal)
 
 
-def training_loss(model, time_to_maturity, moneyness):
+def training_loss(model, time_to_maturity, moneyness, terminal_time, terminal_moneyness):
     """
         Lf = Lg + N'(d1)/(I*sqrt(T-t)) LI - sigma^2 exp(-mt) (N'(d1) * (2 d1 - 1)/(2 I))/N(d1) del I / del m
         Lg = - exp(-mt I N'(d1))/(2 sqrt(T-t)) + sigma^2/2 exp(-mt) N'(d1)/(I sqrt(T-t))
@@ -103,10 +103,18 @@ def training_loss(model, time_to_maturity, moneyness):
     _, (_, _, Lf) = model_loss_components(model, time_to_maturity, moneyness)
     valid_Lf = tf.boolean_mask(Lf, tf.math.is_finite(Lf))
 
+    terminal_loss = calc_termianl_loss(model, terminal_time, terminal_moneyness)
+
     differential_loss = tf.reduce_mean(tf.square(valid_Lf))
 
+    total_loss = differential_loss + terminal_loss
+
     desc = f'differential_loss: {differential_loss:.3f}'
-    return differential_loss, desc
+    return total_loss, desc
+
+def calc_termianl_loss(model, terminal_time, terminal_moneyness):
+    y_hat = model((terminal_time, terminal_moneyness)) 
+    return tf.reduce_mean(tf.square(SIGMA - y_hat))
 
 def model_loss_components(model, time_to_maturity, moneyness):
     I, I_m, I_t, I_mm = createGradients(model, time_to_maturity, moneyness)
@@ -172,11 +180,11 @@ def train(model):
             print("sampling...")
             losses = []
         # sample uniformly from the required regions (these form X)
-        time, moneyness = sampler(N_INTERIOR_OBS, N_TERMINAL_OBS)
+        (time, moneyness), (terminal_time, terminal_moneyness) = sampler(N_INTERIOR_OBS, N_TERMINAL_OBS)
     
         for _ in tqdm(range(STEPS_PER_SAMPLE), leave=False):
             with tf.GradientTape() as tape:
-                loss, loss_str_desc = training_loss(model, MATURITY_TIME - time, moneyness)
+                loss, loss_str_desc = training_loss(model, MATURITY_TIME - time, moneyness, terminal_time, terminal_moneyness)
                 if DEBUG:
                     losses.append(loss.numpy().item())
             if DEBUG:
