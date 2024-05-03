@@ -7,7 +7,7 @@ from tqdm import tqdm
 from scipy.stats import norm
 
 DEBUG = False
-USE_CHECKPOINT = True
+USE_CHECKPOINT = False
 
 # Option parameters
 INTEREST_RATE = 0.05           # Interest rate
@@ -109,7 +109,7 @@ def training_loss(model, time_to_maturity, moneyness, terminal_time, terminal_mo
 
     total_loss = differential_loss + terminal_loss
 
-    desc = f'differential_loss: {differential_loss:.3f}'
+    desc = f'differential_loss: {differential_loss:.3f}, terminal_loss: {terminal_loss}'
     return total_loss, desc
 
 def calc_termianl_loss(model, terminal_time, terminal_moneyness):

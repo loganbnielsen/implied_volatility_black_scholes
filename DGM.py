@@ -113,11 +113,11 @@ class DenseLayer(tf.keras.layers.Layer):
         
         ### define dense layer parameters (use Xavier initialization)
         # w vectors (weighting vectors for output of previous layer)
-        self.W = self.add_weight("W", shape=[self.input_dim, self.output_dim],
+        self.W = self.add_weight(shape=[self.input_dim, self.output_dim],
                                    initializer = tf.keras.initializers.glorot_normal())
         
         # bias vectors
-        self.b = self.add_weight("b", shape=[1, self.output_dim])
+        self.b = self.add_weight(shape=[1, self.output_dim])
         
         if transformation:
             if transformation == "tanh":
